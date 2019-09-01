@@ -14,7 +14,7 @@ namespace SpeedStatsASRT
             height = 300,
             margin = 0,
             minValue = 0,
-            maxValue = 350,
+            maxValue = 150,
             flags = 0,
             colour = Color.Magenta.ToArgb()
         };
@@ -25,8 +25,8 @@ namespace SpeedStatsASRT
             width = 800,
             height = 300,
             margin = 0,
-            minValue = -20,
-            maxValue = 20,
+            minValue = -5,
+            maxValue = 5,
             flags = 0,
             colour = Color.Green.ToArgb()
         };
@@ -36,10 +36,6 @@ namespace SpeedStatsASRT
         static OSD osd;
         static float speed = 0;
         static float oldSpeed = 0;
-        static float oldCarSpeed = 0;
-        static float oldBoatSpeed = 0;
-        static float oldPlaneSpeed = 0;
-        static CurrentModeEnum currentMode = CurrentModeEnum.Car;
         static bool speedAvailable = false;
 
         static void Main(string[] args)
@@ -101,7 +97,8 @@ namespace SpeedStatsASRT
                         while (true)
                         {
                             System.Threading.Thread.Sleep(10);
-                            GetSpeed();
+                            oldSpeed = speed;
+                            speed = NewSpeed(0);
                             if (!validHandle)
                             {
                                 speedGraph.dataPoints = new float[speedGraph.dataPoints.Length];
@@ -190,72 +187,14 @@ namespace SpeedStatsASRT
             osd.Update(string.Format(osdText));
         }
 
-        public static void GetSpeed()
-        {
-            byte[] lpBuffer = new byte[sizeof(float)];
-            speedAvailable = NativeMethods.ReadProcessMemory(processHandle, GetCarPointer(), lpBuffer, (UIntPtr)4, UIntPtr.Zero);
-            if (!speedAvailable)
-            {
-                oldSpeed = 0;
-                speed = 0;
-                return;
-            }
-            float carSpeed = BitConverter.ToSingle(lpBuffer, 0);
-            NativeMethods.ReadProcessMemory(processHandle, GetBoatPointer(), lpBuffer, (UIntPtr)4, UIntPtr.Zero);
-            float boatSpeed = BitConverter.ToSingle(lpBuffer, 0) * 3.59696f;
-            NativeMethods.ReadProcessMemory(processHandle, GetPlanePointer(), lpBuffer, (UIntPtr)4, UIntPtr.Zero);
-            float planeSpeed = BitConverter.ToSingle(lpBuffer, 0) * 1.597903f;
-
-            oldSpeed = speed;
-            if (oldCarSpeed != carSpeed && carSpeed > -275 && carSpeed < 9999)
-            {
-                currentMode = CurrentModeEnum.Car;
-                speed = Math.Abs(carSpeed);
-            }
-            else if (oldBoatSpeed != boatSpeed && boatSpeed > -275 && boatSpeed < 9999)
-            {
-                currentMode = CurrentModeEnum.Boat;
-                speed = Math.Abs(boatSpeed);
-            }
-            else if (oldPlaneSpeed != planeSpeed && planeSpeed > -275 && planeSpeed < 9999)
-            {
-                currentMode = CurrentModeEnum.Plane;
-                speed = Math.Abs(planeSpeed);
-            }
-
-            oldCarSpeed = carSpeed;
-            oldBoatSpeed = boatSpeed;
-            oldPlaneSpeed = planeSpeed;
-        }
-
-        public static UIntPtr GetBoatPointer()
+        public static float NewSpeed(int index)
         {
             byte[] lpBuffer = new byte[4];
-            NativeMethods.ReadProcessMemory(processHandle, (UIntPtr)0xEC1ECC, lpBuffer, (UIntPtr)4, UIntPtr.Zero);
-            NativeMethods.ReadProcessMemory(processHandle, (UIntPtr)BitConverter.ToUInt32(lpBuffer, 0) + 184, lpBuffer, (UIntPtr)4, UIntPtr.Zero);
-            NativeMethods.ReadProcessMemory(processHandle, (UIntPtr)BitConverter.ToUInt32(lpBuffer, 0) + 304, lpBuffer, (UIntPtr)4, UIntPtr.Zero);
-            NativeMethods.ReadProcessMemory(processHandle, (UIntPtr)BitConverter.ToUInt32(lpBuffer, 0) + 1252, lpBuffer, (UIntPtr)4, UIntPtr.Zero);
-            return (UIntPtr)BitConverter.ToUInt32(lpBuffer, 0) + 464;
-        }
-
-        public static UIntPtr GetCarPointer()
-        {
-            byte[] lpBuffer = new byte[4];
-            validHandle = NativeMethods.ReadProcessMemory(processHandle, (UIntPtr)0xEC1ECC, lpBuffer, (UIntPtr)4, UIntPtr.Zero);
-            NativeMethods.ReadProcessMemory(processHandle, (UIntPtr)BitConverter.ToUInt32(lpBuffer, 0) + 0xB0, lpBuffer, (UIntPtr)4, UIntPtr.Zero);
-            NativeMethods.ReadProcessMemory(processHandle, (UIntPtr)BitConverter.ToUInt32(lpBuffer, 0) + 0x10, lpBuffer, (UIntPtr)4, UIntPtr.Zero);
-            NativeMethods.ReadProcessMemory(processHandle, (UIntPtr)BitConverter.ToUInt32(lpBuffer, 0) + 0x2F4, lpBuffer, (UIntPtr)4, UIntPtr.Zero);
-            return (UIntPtr)BitConverter.ToUInt32(lpBuffer, 0) + 0xC8;
-        }
-
-        public static UIntPtr GetPlanePointer()
-        {
-            byte[] lpBuffer = new byte[4];
-            NativeMethods.ReadProcessMemory(processHandle, (UIntPtr)0xEC1ECC, lpBuffer, (UIntPtr)4, UIntPtr.Zero);
-            NativeMethods.ReadProcessMemory(processHandle, (UIntPtr)BitConverter.ToUInt32(lpBuffer, 0) + 180, lpBuffer, (UIntPtr)4, UIntPtr.Zero);
-            NativeMethods.ReadProcessMemory(processHandle, (UIntPtr)BitConverter.ToUInt32(lpBuffer, 0) + 304, lpBuffer, (UIntPtr)4, UIntPtr.Zero);
-            NativeMethods.ReadProcessMemory(processHandle, (UIntPtr)BitConverter.ToUInt32(lpBuffer, 0) + 1248, lpBuffer, (UIntPtr)4, UIntPtr.Zero);
-            return (UIntPtr)BitConverter.ToUInt32(lpBuffer, 0) + 528;
+            validHandle = NativeMethods.ReadProcessMemory(processHandle, (UIntPtr)0xBCE92C, lpBuffer, (UIntPtr)4, UIntPtr.Zero);
+            NativeMethods.ReadProcessMemory(processHandle, (UIntPtr)BitConverter.ToUInt32(lpBuffer, 0) + 4, lpBuffer, (UIntPtr)4, UIntPtr.Zero);
+            NativeMethods.ReadProcessMemory(processHandle, (UIntPtr)BitConverter.ToUInt32(lpBuffer, 0) + 4 * index, lpBuffer, (UIntPtr)4, UIntPtr.Zero);
+            speedAvailable = NativeMethods.ReadProcessMemory(processHandle, (UIntPtr)BitConverter.ToUInt32(lpBuffer, 0) + 0xD81C, lpBuffer, (UIntPtr)4, UIntPtr.Zero);
+            return Math.Abs(BitConverter.ToSingle(lpBuffer, 0));
         }
 
         public void Dispose()
